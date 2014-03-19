@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import logic.LogicService;
+import logic.SpecificLogicService;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
@@ -38,7 +39,7 @@ import static io.netty.handler.codec.http.HttpVersion.*;
 
 public class HttpServerHandler extends ChannelInboundHandlerAdapter {
 
-	private LogicService logicService;
+	private LogicService logicService = SpecificLogicService.getInstance();
 
 	private static final byte[] CONTENT = { 'H', 'e', 'l', 'l', 'o', ' ', 'W',
 			'o', 'r', 'l', 'd' };
@@ -62,9 +63,8 @@ public class HttpServerHandler extends ChannelInboundHandlerAdapter {
 					req.getUri());
 			Map<String, List<String>> uriAttributes = decoderQuery.parameters();
 			String command = decoderQuery.path().substring(1);
-			// String result = logicService.handleCommand(command,
-			// uriAttributes);
-			String result = command;
+			String result = logicService.handleCommand(command, uriAttributes);
+			// String result = command;
 			ByteBuf buf = copiedBuffer(result, CharsetUtil.UTF_8);
 
 			boolean keepAlive = isKeepAlive(req); // TODO important
