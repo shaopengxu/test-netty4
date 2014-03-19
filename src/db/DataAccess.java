@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Date;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,13 +27,18 @@ public class DataAccess {
 	public static String underline = "_";
 	public static String fileSuffix = ".obj";
 	public static Map<String, Object> fileLockMap = new ConcurrentHashMap<String, Object>();
+	public static Map<String, Object[]> objectMap = new ConcurrentHashMap<String, Object[]>();
+	public static int timeOutHour = 2;
 
 	public static DataAccess getInstance() {
 		return dataAccess;
 	}
 
-	public synchronized Object getFileLockObject(String className, int id) {
-		String s = className + id;
+	public String getObjectKey(String className, int id) {
+		return new StringBuilder().append(className).append(id).toString();
+	}
+
+	public synchronized Object getFileLockObject(String s) {
 		Object obj = fileLockMap.get(s);
 		if (obj == null) {
 			obj = new Object();
@@ -76,8 +83,8 @@ public class DataAccess {
 		String fileName = getObjectFileName(o.getClass().getSimpleName(), id);
 		checkDirExist(o.getClass().getSimpleName(), id);
 		try {
-			// TODO 可以用读写锁
-			Object lock = getFileLockObject(o.getClass().getSimpleName(), id);
+			String s = getObjectKey(o.getClass().getSimpleName(), id);
+			Object lock = getFileLockObject(s);
 			synchronized (lock) {
 				ObjectOutputStream out = new ObjectOutputStream(
 						new FileOutputStream(fileName));
@@ -94,12 +101,21 @@ public class DataAccess {
 		String fileName = getObjectFileName(clazz.getSimpleName(), id);
 		checkDirExist(clazz.getSimpleName(), id);
 		try {
-			Object lock = getFileLockObject(clazz.getSimpleName(), id);
+			String s = getObjectKey(clazz.getSimpleName(), id);
+			if (objectMap.get(s) != null) {
+				objectMap.get(s)[0] = System.currentTimeMillis();
+				return objectMap.get(s)[1];
+			}
+			Object lock = getFileLockObject(s);
 			synchronized (lock) {
 				ObjectInputStream in = new ObjectInputStream(
 						new FileInputStream(fileName));
 				Object object = in.readObject();
 				in.close();
+				Object[] objs = new Object[2];
+				objs[0] = System.currentTimeMillis();
+				objs[1] = object;
+				objectMap.put(s, objs);
 				return object;
 			}
 
@@ -116,17 +132,35 @@ public class DataAccess {
 		return null;
 	}
 
+	/**
+	 * 每两个小时执行一次
+	 */
+	public void clearTimeOutObject() {
+		for (Iterator<String> iterator = objectMap.keySet().iterator(); iterator
+				.hasNext();) {
+			String s = iterator.next();
+			Long time = (Long) objectMap.get(s)[0];
+			if (System.currentTimeMillis() - time > timeOutHour * 60 * 60 * 1000) {
+				iterator.remove();
+			}
+		}
+	}
+
 	public static void main(String[] args) {
 		TestObject to = new TestObject();
 		DataAccess da = getInstance();
-		da.writeObject(to, 1);
-		to = (TestObject) da.readObject(TestObject.class, 1);
-		System.out.println(to.i);
+		long time = System.currentTimeMillis();
+		for (int i = 0; i < 10000; i++) {
+			da.writeObject(to, i);
+			to = (TestObject) da.readObject(TestObject.class, i);
+		}
+
+		System.out.println(System.currentTimeMillis() - time);
 	}
 
 }
 
-class TestObject implements Serializable{
+class TestObject implements Serializable {
 	/**
 	 * 
 	 */

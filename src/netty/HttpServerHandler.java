@@ -63,6 +63,9 @@ public class HttpServerHandler extends ChannelInboundHandlerAdapter {
 					req.getUri());
 			Map<String, List<String>> uriAttributes = decoderQuery.parameters();
 			String command = decoderQuery.path().substring(1);
+			if (command.equals("favicon.ico")) {
+				return;
+			}
 			String result = logicService.handleCommand(command, uriAttributes);
 			// String result = command;
 			ByteBuf buf = copiedBuffer(result, CharsetUtil.UTF_8);
